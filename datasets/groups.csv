@@ -1,0 +1,15 @@
+video_path,source_group
+datasets/raw/accident/CA_001.mp4,event_001
+datasets/raw/accident/CA_002.mp4,file_0d1ede9430931d89
+datasets/raw/accident/CA_003.mp4,file_7bdf354e8b63ed71
+datasets/raw/accident/CA_004.mp4,file_c35a297b85fa704c
+datasets/raw/accident/CA_005.mp4,file_722c1c20d55f2cdb
+datasets/raw/accident/CA_006.mp4,file_a7db3ac5e8905a7b
+datasets/raw/accident/CA_007.mp4,file_97d4942ef8879db9
+datasets/raw/accident/CA_008.mp4,file_c63c8de27578a282
+datasets/raw/accident/CA_009.mp4,file_7407b7b54f69bf06
+datasets/raw/normal/NV_001.webm,file_a022c1adc52d5693
+datasets/raw/normal/NV_002.webm,file_7a581ffbf16980df
+datasets/raw/normal/NV_003.webm,file_b540bd82a09c6c5f
+datasets/raw/normal/NV_004.webm,file_6f972046040b78fa
+datasets/raw/normal/NV_005.webm,file_acfda42b65cd1ccd

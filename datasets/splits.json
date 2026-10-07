@@ -1,0 +1,110 @@
+{
+  "fingerprint": "1b53c08ae016b37c105c3dfd932c33cfc41e4a1cdb1e2353f799283254f43c1f",
+  "seed": 42,
+  "splits": {
+    "train": [
+      {
+        "video_path": "datasets/raw/accident/CA_001.mp4",
+        "label": 1,
+        "class_name": "accident",
+        "sha256": "bbf7aa94e896703688f64ca6b433bf409e996f0f2e1876c79db1717dc625b5d7",
+        "source_group": "event_001"
+      },
+      {
+        "video_path": "datasets/raw/normal/NV_004.webm",
+        "label": 0,
+        "class_name": "normal",
+        "sha256": "6f972046040b78fa81adf07c8b56ad58ef76bac9504374251a6312149b1ecfd9",
+        "source_group": "file_6f972046040b78fa"
+      },
+      {
+        "video_path": "datasets/raw/accident/CA_008.mp4",
+        "label": 1,
+        "class_name": "accident",
+        "sha256": "c63c8de27578a2827e47cb074b67ee08a066bb378e88eb29eb28e776b7e008ca",
+        "source_group": "file_c63c8de27578a282"
+      },
+      {
+        "video_path": "datasets/raw/normal/NV_002.webm",
+        "label": 0,
+        "class_name": "normal",
+        "sha256": "7a581ffbf16980df79bc6a264a2356fe82eda08ced531f1da5c90aaa0a4cb25a",
+        "source_group": "file_7a581ffbf16980df"
+      },
+      {
+        "video_path": "datasets/raw/accident/CA_006.mp4",
+        "label": 1,
+        "class_name": "accident",
+        "sha256": "a7db3ac5e8905a7badf1b730c329b920c9b817cece8235970e2ec2ec51342674",
+        "source_group": "file_a7db3ac5e8905a7b"
+      },
+      {
+        "video_path": "datasets/raw/accident/CA_002.mp4",
+        "label": 1,
+        "class_name": "accident",
+        "sha256": "0d1ede9430931d898d29e21b2b44209323f0db60507ad70d56a273ebae0b05a7",
+        "source_group": "file_0d1ede9430931d89"
+      },
+      {
+        "video_path": "datasets/raw/accident/CA_003.mp4",
+        "label": 1,
+        "class_name": "accident",
+        "sha256": "7bdf354e8b63ed712fc58c181b91d139cab9786122977cb8a61c9095404437b4",
+        "source_group": "file_7bdf354e8b63ed71"
+      },
+      {
+        "video_path": "datasets/raw/accident/CA_007.mp4",
+        "label": 1,
+        "class_name": "accident",
+        "sha256": "97d4942ef8879db918472870e5dfecc26c20f30e803e8fcd34252ef6e11d23e0",
+        "source_group": "file_97d4942ef8879db9"
+      },
+      {
+        "video_path": "datasets/raw/normal/NV_001.webm",
+        "label": 0,
+        "class_name": "normal",
+        "sha256": "a022c1adc52d5693704fd695bf4c66c3b4571229409dc5eaedd3cac3046764b6",
+        "source_group": "file_a022c1adc52d5693"
+      },
+      {
+        "video_path": "datasets/raw/accident/CA_004.mp4",
+        "label": 1,
+        "class_name": "accident",
+        "sha256": "c35a297b85fa704c743d3a26eb79c6c1aa1f0d25c7fbcf7c74e0caca79adb57d",
+        "source_group": "file_c35a297b85fa704c"
+      }
+    ],
+    "val": [
+      {
+        "video_path": "datasets/raw/normal/NV_005.webm",
+        "label": 0,
+        "class_name": "normal",
+        "sha256": "acfda42b65cd1ccd2d77049122add732b9416d99662b25096b1db84d3ef288d1",
+        "source_group": "file_acfda42b65cd1ccd"
+      },
+      {
+        "video_path": "datasets/raw/accident/CA_005.mp4",
+        "label": 1,
+        "class_name": "accident",
+        "sha256": "722c1c20d55f2cdbc38d23e6fe6f17656a20d914a11a580de3ac31c1576932e7",
+        "source_group": "file_722c1c20d55f2cdb"
+      }
+    ],
+    "test": [
+      {
+        "video_path": "datasets/raw/accident/CA_009.mp4",
+        "label": 1,
+        "class_name": "accident",
+        "sha256": "7407b7b54f69bf06c8aa8938470311cd8d85e62321f7cb17794be2a80cad707b",
+        "source_group": "file_7407b7b54f69bf06"
+      },
+      {
+        "video_path": "datasets/raw/normal/NV_003.webm",
+        "label": 0,
+        "class_name": "normal",
+        "sha256": "b540bd82a09c6c5f10570ce3c1d1672abdc193337a3dc5ce94d5ad7bc3f432b1",
+        "source_group": "file_b540bd82a09c6c5f"
+      }
+    ]
+  }
+}
