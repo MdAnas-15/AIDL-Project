@@ -1,0 +1,81 @@
+{
+  "video": "D:\\Anas\\3rd year\\AIDL\\AIDL_Project_Complete\\AIDL Project\\Test\\NTV.webm",
+  "prediction": "Normal",
+  "accident_score": 9.068557119462639e-05,
+  "threshold": 0.5,
+  "visual_score": 9.068557119462639e-05,
+  "audio_score": 0.46180975437164307,
+  "mode": "audio_visual",
+  "visual_weight": 1.0,
+  "known_dataset_split": null,
+  "duration_s": 18.715999999999998,
+  "warnings": [
+    "Scores are uncalibrated model outputs, not a guaranteed probability of an accident."
+  ],
+  "windows": [
+    {
+      "start_s": 0.007,
+      "end_s": 4.007,
+      "visual_score": 9.068557119462639e-05,
+      "audio_score": 0.45779359340667725,
+      "audio_coverage": 0.999875
+    },
+    {
+      "start_s": 2.007,
+      "end_s": 6.007,
+      "visual_score": 1.282704670302337e-05,
+      "audio_score": 0.46024826169013977,
+      "audio_coverage": 1.0
+    },
+    {
+      "start_s": 4.007,
+      "end_s": 8.007,
+      "visual_score": 1.0556035704212263e-05,
+      "audio_score": 0.4600825607776642,
+      "audio_coverage": 1.0
+    },
+    {
+      "start_s": 6.007,
+      "end_s": 10.007,
+      "visual_score": 1.0471931091160513e-05,
+      "audio_score": 0.46180975437164307,
+      "audio_coverage": 1.0
+    },
+    {
+      "start_s": 8.007,
+      "end_s": 12.007,
+      "visual_score": 9.728254553920124e-06,
+      "audio_score": 0.45696505904197693,
+      "audio_coverage": 1.0
+    },
+    {
+      "start_s": 10.007,
+      "end_s": 14.007,
+      "visual_score": 1.1265106877544895e-05,
+      "audio_score": 0.4582460820674896,
+      "audio_coverage": 1.0
+    },
+    {
+      "start_s": 12.007,
+      "end_s": 16.007,
+      "visual_score": 1.1982991964032408e-05,
+      "audio_score": 0.4574384093284607,
+      "audio_coverage": 1.0
+    },
+    {
+      "start_s": 14.007,
+      "end_s": 18.007,
+      "visual_score": 1.2784646060026716e-05,
+      "audio_score": 0.4562351107597351,
+      "audio_coverage": 1.0
+    },
+    {
+      "start_s": 14.722999999999997,
+      "end_s": 18.723,
+      "visual_score": 2.2678732420899905e-05,
+      "audio_score": 0.4556719958782196,
+      "audio_coverage": 0.998203125
+    }
+  ],
+  "aggregation": "max score per modality across windows, then weighted video-level fusion"
+}

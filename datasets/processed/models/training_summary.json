@@ -1,0 +1,50 @@
+{
+  "config": {
+    "seed": 42,
+    "clip_seconds": 4.0,
+    "stride_seconds": 2.0,
+    "frames": 16,
+    "image_size": 224,
+    "sample_rate": 16000,
+    "n_fft": 400,
+    "hop": 160,
+    "mel_bands": 64,
+    "min_audio_coverage": 0.95,
+    "max_video_seconds": 120.0,
+    "feature_version": "resnet18-letterbox-mel-v1"
+  },
+  "split_counts": {
+    "train": 10,
+    "val": 2,
+    "test": 2
+  },
+  "fusion": {
+    "visual_weight": 1.0,
+    "threshold": 0.5,
+    "selection": "validation log loss; fixed threshold 0.5",
+    "candidates": [
+      {
+        "visual_weight": 0.0,
+        "validation_log_loss": 0.700170636177063
+      },
+      {
+        "visual_weight": 0.25,
+        "validation_log_loss": 0.4760664850473404
+      },
+      {
+        "visual_weight": 0.5,
+        "validation_log_loss": 0.2934786230325699
+      },
+      {
+        "visual_weight": 0.75,
+        "validation_log_loss": 0.13932060077786446
+      },
+      {
+        "visual_weight": 1.0,
+        "validation_log_loss": 0.005883698599063791
+      }
+    ]
+  },
+  "device": "cpu",
+  "note": "Visual encoder is pretrained and frozen; temporal head and audio CNN are trained. No test examples used for training, normalization, early stopping or fusion selection."
+}
