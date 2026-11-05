@@ -1,0 +1,76 @@
+{
+  "video": "D:\\Anas\\3rd year\\AIDL\\AIDL_Project_Complete\\AIDL Project\\datasets\\processed\\uploads\\ab4e593ff348_CAT_001.webm",
+  "prediction": "Accident",
+  "accident_score": 0.9967612624168396,
+  "threshold": 0.5,
+  "visual_score": 0.9967612624168396,
+  "audio_score": 0.4658612608909607,
+  "mode": "visual_only",
+  "visual_weight": 1.0,
+  "validation_selected_visual_weight": 1.0,
+  "known_dataset_split": null,
+  "duration_s": 17.585,
+  "warnings": [
+    "Scores are uncalibrated model outputs, not guaranteed accident probabilities.",
+    "The validation-selected visual weight is 1.00. Audio was evaluated for diagnostics, but it did not contribute to the final decision."
+  ],
+  "windows": [
+    {
+      "start_s": 0.0,
+      "end_s": 4.0,
+      "visual_score": 0.6049661040306091,
+      "audio_score": 0.4635056257247925,
+      "audio_coverage": 0.999875
+    },
+    {
+      "start_s": 2.0,
+      "end_s": 6.0,
+      "visual_score": 0.2564225196838379,
+      "audio_score": 0.4658612608909607,
+      "audio_coverage": 1.0
+    },
+    {
+      "start_s": 4.0,
+      "end_s": 8.0,
+      "visual_score": 0.9878445267677307,
+      "audio_score": 0.46360623836517334,
+      "audio_coverage": 1.0
+    },
+    {
+      "start_s": 6.0,
+      "end_s": 10.0,
+      "visual_score": 0.9967612624168396,
+      "audio_score": 0.45996448397636414,
+      "audio_coverage": 1.0
+    },
+    {
+      "start_s": 8.0,
+      "end_s": 12.0,
+      "visual_score": 0.9960843324661255,
+      "audio_score": 0.4627671539783478,
+      "audio_coverage": 1.0
+    },
+    {
+      "start_s": 10.0,
+      "end_s": 14.0,
+      "visual_score": 0.9955097436904907,
+      "audio_score": 0.4596484303474426,
+      "audio_coverage": 1.0
+    },
+    {
+      "start_s": 12.0,
+      "end_s": 16.0,
+      "visual_score": 0.9855508804321289,
+      "audio_score": 0.45954403281211853,
+      "audio_coverage": 1.0
+    },
+    {
+      "start_s": 13.585,
+      "end_s": 17.585,
+      "visual_score": 0.4366929233074188,
+      "audio_score": 0.4599646031856537,
+      "audio_coverage": 0.998296875
+    }
+  ],
+  "aggregation": "maximum window score per modality, followed by validation-selected video-level decision"
+}
