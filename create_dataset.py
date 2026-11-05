@@ -399,53 +399,110 @@ def load_bundle(root, device_name='auto'):
     return state, models, norms, extractor, device
 
 def score_sample(sample, models, norms, device, alpha, force_visual=False):
+    """Score one video and report which modalities actually affect its decision."""
     vp = predict_windows(models['visual'], sample, 'visual', norms['visual'], device)
-    usable = sample['audio_usable']
-    use_audio = bool(usable.all()) and not force_visual
-    ap = predict_windows(models['audio'], sample, 'audio', norms['audio'], device) if use_audio else None
     visual_score = float(vp.max())
+
+    audio_available = bool(np.asarray(sample['audio_usable'], dtype=bool).all())
+    audio_enabled = audio_available and not force_visual
+    ap = (predict_windows(models['audio'], sample, 'audio', norms['audio'], device)
+          if audio_enabled else None)
     audio_score = float(ap.max()) if ap is not None else None
-    # Late fusion of whole-video scores. This has exactly the same definition
-    # in validation, test evaluation, and independent-video prediction.
-    score = alpha * visual_score + (1 - alpha) * audio_score if use_audio else visual_score
-    return vp, ap, visual_score, audio_score, float(score), use_audio
+
+    eps = 1e-8
+    if not audio_enabled:
+        mode = 'visual_only'
+        score = visual_score
+    elif alpha <= eps:
+        mode = 'audio_only'
+        score = audio_score
+    elif alpha >= 1.0 - eps:
+        # Audio was evaluated for diagnostics, but its fusion weight is zero.
+        mode = 'visual_only'
+        score = visual_score
+    else:
+        mode = 'audio_visual'
+        score = alpha * visual_score + (1.0 - alpha) * audio_score
+
+    return vp, ap, visual_score, audio_score, float(score), mode
 
 
 def predict_video(root, video, device_name='auto', visual_only=False):
     root, video = Path(root), Path(video).expanduser().resolve()
     if not video.is_file():
         raise FileNotFoundError(f"Video not found: {video}")
+
     state, models, norms, extractor, device = load_bundle(root, device_name)
     sample = extractor.extract(video, allow_missing_audio=True)
-    alpha = state['fusion']['visual_weight']
-    vp, ap, vs, audio_score, score, use_audio = score_sample(sample, models, norms, device, alpha, visual_only)
+    alpha = float(state['fusion']['visual_weight'])
+    vp, ap, visual_score, audio_score, score, mode = score_sample(
+        sample, models, norms, device, alpha, visual_only
+    )
     checksum = sha256_file(video)
     previous = state['known_hashes'].get(checksum)
-    warnings = ["Scores are uncalibrated model outputs, not a guaranteed probability of an accident."]
+    threshold = float(state['fusion']['threshold'])
+
+    warnings = [
+        "Scores are uncalibrated model outputs, not guaranteed accident probabilities."
+    ]
     if previous:
-        warnings.append(f"This exact video belongs to the saved {previous} split; it is not a new independent video.")
-    if not use_audio:
-        warnings.append("Using the visual model only: audio was disabled, absent, silent, incomplete, or undecodable. "
-                        "The audiovisual validation metrics do not describe this fallback.")
+        warnings.append(
+            f"This exact video belongs to the saved {previous} split; it is not an independent new video."
+        )
+
+    if visual_only:
+        warnings.append("Visual-only mode was explicitly requested; audio did not affect the decision.")
+    elif not bool(np.asarray(sample['audio_usable'], dtype=bool).all()):
+        warnings.append(
+            "Audio was absent, silent, incomplete, or undecodable. The prediction used the visual model only."
+        )
+    elif mode == 'visual_only' and audio_score is not None:
+        warnings.append(
+            "The validation-selected visual weight is 1.00. Audio was evaluated for diagnostics, "
+            "but it did not contribute to the final decision."
+        )
+    elif mode == 'audio_only':
+        warnings.append(
+            "The validation-selected fusion weight assigns the final decision to the audio branch."
+        )
+
     if str(sample['audio_error'].item()):
         warnings.append("Audio decoding: " + str(sample['audio_error'].item()))
-    threshold = state['fusion']['threshold']
+
     rows = []
     for i in range(len(vp)):
-        rows.append({"start_s": float(sample['starts'][i]), "end_s": float(sample['ends'][i]),
-                     "visual_score": float(vp[i]), "audio_score": float(ap[i]) if ap is not None else None,
-                     "audio_coverage": float(sample['audio_coverage'][i])})
-    result = {"video": str(video), "prediction": "Accident" if score >= threshold else "Normal",
-              "accident_score": score, "threshold": threshold, "visual_score": vs,
-              "audio_score": audio_score, "mode": "audio_visual" if use_audio else "visual_only",
-              "visual_weight": alpha if use_audio else 1.0, "known_dataset_split": previous,
-              "duration_s": float(sample['duration']), "warnings": warnings, "windows": rows,
-              "aggregation": "max score per modality across windows, then weighted video-level fusion"}
+        rows.append({
+            "start_s": float(sample['starts'][i]),
+            "end_s": float(sample['ends'][i]),
+            "visual_score": float(vp[i]),
+            "audio_score": float(ap[i]) if ap is not None else None,
+            "audio_coverage": float(sample['audio_coverage'][i]),
+        })
+
+    result = {
+        "video": str(video),
+        "prediction": "Accident" if score >= threshold else "Normal",
+        "accident_score": float(score),
+        "threshold": threshold,
+        "visual_score": visual_score,
+        "audio_score": audio_score,
+        "mode": mode,
+        "visual_weight": alpha if mode == 'audio_visual' else (0.0 if mode == 'audio_only' else 1.0),
+        "validation_selected_visual_weight": alpha,
+        "known_dataset_split": previous,
+        "duration_s": float(sample['duration']),
+        "warnings": warnings,
+        "windows": rows,
+        "aggregation": "maximum window score per modality, followed by validation-selected video-level decision",
+    }
+
     folder = root / 'datasets/processed/predictions' / (video.stem + '_' + checksum[:10])
     write_json(folder / 'prediction.json', result)
     write_csv(folder / 'windows.csv', rows, list(rows[0]))
-    print(f"\nPrediction: {result['prediction']} | accident score: {score:.4f} | mode: {result['mode']}")
-    print(f"Visual: {vs:.4f}; audio: {audio_score if audio_score is not None else 'unavailable'}")
+    print(
+        f"\nPrediction: {result['prediction']} | accident score: {score:.4f} | mode: {mode}"
+    )
+    print(f"Visual: {visual_score:.4f}; audio: {audio_score if audio_score is not None else 'unavailable'}")
     for warning in warnings:
         print('NOTE:', warning)
     print('Saved:', folder / 'prediction.json')

@@ -292,3 +292,74 @@ API references:
 https://docs.pytorch.org/vision/stable/models/generated/torchvision.models.resnet18.html
 https://pyav.basswood.io/docs/stable/api/audio.html
 https://scikit-learn.org/stable/modules/model_evaluation.html
+
+# Showcase application and current experiment workflow
+
+## Install updated dependencies
+
+Activate the existing Python 3.11 virtual environment, then run:
+
+```powershell
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python create_dataset.py doctor
+```
+
+If PyTorch is not already installed and your laptop will use CPU, install the matching CPU wheels first (then install the remaining requirements):
+
+```powershell
+python -m pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cpu
+python -m pip install -r requirements.txt
+```
+
+## Start the showcase interface
+
+From the repository root, with the trained model files present:
+
+```powershell
+python -m streamlit run app.py
+```
+
+Streamlit opens a local browser tab. Upload a supported video (MP4, AVI, MOV, MKV, WEBM, or M4V), then choose **Analyse video**. A video must be no longer than 120 seconds under the current `Config` in `inspect_video.py`.
+
+The app displays the final Accident/Normal result, raw model scores, the selected decision path, window-level scores, and downloadable JSON/CSV reports. Scores are not calibrated probabilities.
+
+## Train with the two additional local normal videos
+
+Place the two files under `datasets/raw/normal/`. Run the `CREATE_DATASET_PATCH.md` instructions to archive the old split/model and intentionally create a new split. The raw dataset and any generated cache remain local; the cache is keyed by each file hash and preprocessing configuration.
+
+```powershell
+python create_dataset.py
+Remove-Item .\datasets\splits.json
+python create_dataset.py train --overwrite
+python create_dataset.py evaluate
+```
+
+If the two long videos exceed the 120-second limit, do not simply raise the limit without considering the cost: split them into meaningful labelled clips of at most 120 seconds. Every clip derived from the same original recording must share one `source_group` in `datasets/groups.csv`, so related clips cannot leak across training and test splits. The clip-generation method must preserve the original audio; do not replace audio with downloaded crash sounds.
+
+## Before presenting
+
+1. Run `python create_dataset.py doctor`.
+2. Confirm that `datasets/processed/models/model.pt` and `visual_encoder.pt` exist.
+3. Run the held-out evaluation and retain `test_metrics.json` and `test_predictions.csv`.
+4. Run `python -m streamlit run app.py`.
+5. Try at least two genuinely unseen accident videos and two genuinely unseen normal videos downloaded from different sources. Record their true labels independently and do not add those same videos to training before evaluating them.
+6. Present the model as an academic prototype. The current small dataset and very small test split do not establish broad real-world accuracy.
+
+## Evaluate on a separate set of online videos
+
+Create two folders OUTSIDE `datasets/raw` and put genuinely unseen videos in them:
+
+```text
+D:\\AIDL-External-Test\\
+  accident\\
+  normal\\
+```
+
+Manually confirm the ground-truth class for each downloaded clip. Then run:
+
+```powershell
+python evaluate_external.py --accident-dir "D:\\AIDL-External-Test\\accident" --normal-dir "D:\\AIDL-External-Test\\normal"
+```
+
+The evaluator refuses exact files already included in the model's training, validation, or test split. It writes a JSON report and per-video CSV under `datasets/processed/reports/`. Begin with at least 2–5 genuinely independent videos per class for a smoke test, then expand the set. A handful of samples remains preliminary evidence, not a dependable estimate of real-world accuracy.
