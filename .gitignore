@@ -1,11 +1,33 @@
+# Python environments and bytecode
 .venv/
-__pycache__/
-*.pyc
-# Streamlit local configuration/secrets and uploaded demonstration videos
-.streamlit/secrets.toml
-datasets/processed/uploads/
-
-# Python/test caches
+venv/
 __pycache__/
 *.py[cod]
+*$py.class
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local secrets and environment files
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+
+# Generated preprocessing, model, prediction, and report artifacts
+# (raw source recordings and reviewed annotation/group CSVs are managed separately)
+datasets/processed/cache/
+datasets/processed/models/*.pt
+datasets/processed/predictions/
+datasets/processed/uploads/
+datasets/processed/reports/
+datasets/processed/audio/
+datasets/processed/video/
+datasets/inventory.csv
+datasets/splits.json
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
