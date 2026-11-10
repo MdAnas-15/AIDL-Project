@@ -2,8 +2,21 @@
 import unittest
 
 import numpy as np
+import torch
+from torch import nn
 
-from create_dataset import choose_fusion
+from create_dataset import choose_fusion, score_sample
+
+
+class ConstantLogitModel(nn.Module):
+    """Small deterministic model used to test score_sample without training."""
+
+    def __init__(self, logit: float):
+        super().__init__()
+        self.logit = float(logit)
+
+    def forward(self, x):
+        return torch.full((x.shape[0],), self.logit, dtype=x.dtype, device=x.device)
 
 
 class FusionPolicyTests(unittest.TestCase):
@@ -19,15 +32,54 @@ class FusionPolicyTests(unittest.TestCase):
         self.assertLess(alpha, 1.0)
         self.assertIn("both modalities contribute", result["selection"])
 
-    def test_fused_score_contains_nonzero_contributions_from_both_branches(self):
-        alpha = 0.75
-        visual_score = 0.80
-        audio_score = 0.20
-        fused = alpha * visual_score + (1.0 - alpha) * audio_score
+    def test_score_sample_uses_both_branches_when_audio_is_usable(self):
+        sample = {
+            "visual": np.asarray([[0.0, 1.0]], dtype=np.float32),
+            "audio": np.asarray([[[0.0, 1.0]]], dtype=np.float32),
+            "audio_usable": np.asarray([True]),
+        }
+        models = {
+            "visual": ConstantLogitModel(2.0),
+            "audio": ConstantLogitModel(-2.0),
+        }
+        norms = {
+            "visual": {"mean": np.asarray([0.0, 0.0]), "std": np.asarray([1.0, 1.0])},
+            "audio": {"mean": np.asarray([0.0]), "std": np.asarray([1.0])},
+        }
 
-        self.assertAlmostEqual(fused, 0.65)
-        self.assertGreater(alpha * visual_score, 0.0)
-        self.assertGreater((1.0 - alpha) * audio_score, 0.0)
+        _, _, visual_score, audio_score, fused_score, mode = score_sample(
+            sample, models, norms, torch.device("cpu"), alpha=0.75
+        )
+
+        expected = 0.75 * visual_score + 0.25 * audio_score
+        self.assertEqual(mode, "audio_visual")
+        self.assertAlmostEqual(fused_score, expected, places=6)
+        self.assertNotAlmostEqual(fused_score, visual_score, places=4)
+        self.assertNotAlmostEqual(fused_score, audio_score, places=4)
+
+    def test_visual_only_fallback_remains_explicit_when_audio_is_unusable(self):
+        sample = {
+            "visual": np.asarray([[0.0, 1.0]], dtype=np.float32),
+            "audio": np.asarray([[[0.0, 1.0]]], dtype=np.float32),
+            "audio_usable": np.asarray([False]),
+        }
+        models = {
+            "visual": ConstantLogitModel(2.0),
+            "audio": ConstantLogitModel(-2.0),
+        }
+        norms = {
+            "visual": {"mean": np.asarray([0.0, 0.0]), "std": np.asarray([1.0, 1.0])},
+            "audio": {"mean": np.asarray([0.0]), "std": np.asarray([1.0])},
+        }
+
+        _, audio_predictions, visual_score, audio_score, final_score, mode = score_sample(
+            sample, models, norms, torch.device("cpu"), alpha=0.75
+        )
+
+        self.assertEqual(mode, "visual_only")
+        self.assertIsNone(audio_predictions)
+        self.assertIsNone(audio_score)
+        self.assertAlmostEqual(final_score, visual_score, places=6)
 
 
 if __name__ == "__main__":
