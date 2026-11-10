@@ -311,13 +311,16 @@ def choose_fusion(labels, visual_scores, audio_scores):
     # a tiny validation set. Choose the weight by validation binary log loss.
     candidates = []
     labels = np.asarray(labels)
-    for alpha in (0.0, 0.25, 0.5, 0.75, 1.0):
+    # Keep both modalities active in every fused decision. Endpoints 0.0 and 1.0
+    # would silently turn late fusion into a single-modality classifier.
+    for alpha in (0.25, 0.50, 0.75):
         p = np.clip(alpha * visual_scores + (1 - alpha) * audio_scores, 1e-6, 1 - 1e-6)
         loss = float(-(labels * np.log(p) + (1 - labels) * np.log(1 - p)).mean())
         candidates.append({"visual_weight": alpha, "validation_log_loss": loss})
     best = min(candidates, key=lambda row: (row['validation_log_loss'], abs(row['visual_weight'] - 0.5)))
     return {"visual_weight": best['visual_weight'], "threshold": 0.5,
-            "selection": "validation log loss; fixed threshold 0.5", "candidates": candidates}
+            "selection": "validation log loss among interior weights [0.25, 0.50, 0.75]; both modalities contribute; fixed threshold 0.5",
+            "candidates": candidates}
 
 
 def load_samples(root, records, extractor):
