@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from torch import nn
 
-from create_dataset import choose_fusion, score_sample
+from create_dataset import choose_fusion, score_sample, validate_multimodal_weight
 
 
 class ConstantLogitModel(nn.Module):
@@ -80,6 +80,17 @@ class FusionPolicyTests(unittest.TestCase):
         self.assertIsNone(audio_predictions)
         self.assertIsNone(audio_score)
         self.assertAlmostEqual(final_score, visual_score, places=6)
+
+    def test_legacy_single_modality_checkpoint_weight_is_rejected(self):
+        for alpha in (0.0, 1.0):
+            with self.subTest(alpha=alpha):
+                with self.assertRaises(ValueError):
+                    validate_multimodal_weight(alpha)
+
+    def test_current_checkpoint_weight_is_accepted(self):
+        for alpha in (0.25, 0.50, 0.75):
+            with self.subTest(alpha=alpha):
+                self.assertEqual(validate_multimodal_weight(alpha), alpha)
 
 
 if __name__ == "__main__":
