@@ -311,13 +311,16 @@ def choose_fusion(labels, visual_scores, audio_scores):
     # a tiny validation set. Choose the weight by validation binary log loss.
     candidates = []
     labels = np.asarray(labels)
-    for alpha in (0.0, 0.25, 0.5, 0.75, 1.0):
+    # Keep both modalities active in every fused decision. Endpoints 0.0 and 1.0
+    # would silently turn late fusion into a single-modality classifier.
+    for alpha in (0.25, 0.50, 0.75):
         p = np.clip(alpha * visual_scores + (1 - alpha) * audio_scores, 1e-6, 1 - 1e-6)
         loss = float(-(labels * np.log(p) + (1 - labels) * np.log(1 - p)).mean())
         candidates.append({"visual_weight": alpha, "validation_log_loss": loss})
     best = min(candidates, key=lambda row: (row['validation_log_loss'], abs(row['visual_weight'] - 0.5)))
     return {"visual_weight": best['visual_weight'], "threshold": 0.5,
-            "selection": "validation log loss; fixed threshold 0.5", "candidates": candidates}
+            "selection": "validation log loss among interior weights [0.25, 0.50, 0.75]; both modalities contribute; fixed threshold 0.5",
+            "candidates": candidates}
 
 
 def load_samples(root, records, extractor):
@@ -381,6 +384,23 @@ def train_project(root, epochs=60, patience=10, device_name='auto', overwrite=Fa
     print("Next: python create_dataset.py evaluate")
 
 
+def validate_multimodal_weight(alpha):
+    """Reject legacy checkpoints whose fusion weight disables either modality."""
+    try:
+        alpha = float(alpha)
+    except (TypeError, ValueError) as error:
+        raise ValueError(
+            "The checkpoint has no valid audio-visual fusion weight. Retrain both branches."
+        ) from error
+    if not 0.0 < alpha < 1.0:
+        raise ValueError(
+            "This checkpoint was trained with a single-modality fusion weight. "
+            "Retrain both branches with the current code using: "
+            "python create_dataset.py train --overwrite"
+        )
+    return alpha
+
+
 def load_bundle(root, device_name='auto'):
     root = Path(root)
     path = root / 'datasets/processed/models/model.pt'
@@ -388,6 +408,7 @@ def load_bundle(root, device_name='auto'):
         raise ValueError("No trained model found. Add both classes and run: python create_dataset.py train")
     device = choose_device(device_name)
     state = torch.load(path, map_location='cpu', weights_only=True)
+    validate_multimodal_weight(state.get('fusion', {}).get('visual_weight'))
     cfg = Config(**state['config'])
     models = {}
     for modality in ('visual', 'audio'):
@@ -399,7 +420,7 @@ def load_bundle(root, device_name='auto'):
     return state, models, norms, extractor, device
 
 def score_sample(sample, models, norms, device, alpha, force_visual=False):
-    """Score one video and report which modalities actually affect its decision."""
+    """Score each branch and combine them whenever both inputs are usable."""
     vp = predict_windows(models['visual'], sample, 'visual', norms['visual'], device)
     visual_score = float(vp.max())
 
@@ -409,23 +430,15 @@ def score_sample(sample, models, norms, device, alpha, force_visual=False):
           if audio_enabled else None)
     audio_score = float(ap.max()) if ap is not None else None
 
-    eps = 1e-8
     if not audio_enabled:
         mode = 'visual_only'
         score = visual_score
-    elif alpha <= eps:
-        mode = 'audio_only'
-        score = audio_score
-    elif alpha >= 1.0 - eps:
-        # Audio was evaluated for diagnostics, but its fusion weight is zero.
-        mode = 'visual_only'
-        score = visual_score
     else:
+        alpha = validate_multimodal_weight(alpha)
         mode = 'audio_visual'
         score = alpha * visual_score + (1.0 - alpha) * audio_score
 
     return vp, ap, visual_score, audio_score, float(score), mode
-
 
 def predict_video(root, video, device_name='auto', visual_only=False):
     root, video = Path(root), Path(video).expanduser().resolve()
@@ -434,7 +447,7 @@ def predict_video(root, video, device_name='auto', visual_only=False):
 
     state, models, norms, extractor, device = load_bundle(root, device_name)
     sample = extractor.extract(video, allow_missing_audio=True)
-    alpha = float(state['fusion']['visual_weight'])
+    alpha = validate_multimodal_weight(state['fusion']['visual_weight'])
     vp, ap, visual_score, audio_score, score, mode = score_sample(
         sample, models, norms, device, alpha, visual_only
     )
@@ -449,21 +462,16 @@ def predict_video(root, video, device_name='auto', visual_only=False):
         warnings.append(
             f"This exact video belongs to the saved {previous} split; it is not an independent new video."
         )
-
     if visual_only:
         warnings.append("Visual-only mode was explicitly requested; audio did not affect the decision.")
     elif not bool(np.asarray(sample['audio_usable'], dtype=bool).all()):
         warnings.append(
             "Audio was absent, silent, incomplete, or undecodable. The prediction used the visual model only."
         )
-    elif mode == 'visual_only' and audio_score is not None:
+    else:
         warnings.append(
-            "The validation-selected visual weight is 1.00. Audio was evaluated for diagnostics, "
-            "but it did not contribute to the final decision."
-        )
-    elif mode == 'audio_only':
-        warnings.append(
-            "The validation-selected fusion weight assigns the final decision to the audio branch."
+            f"Both branches contributed to the final score (visual weight={alpha:.2f}, "
+            f"audio weight={1.0 - alpha:.2f})."
         )
 
     if str(sample['audio_error'].item()):
@@ -482,18 +490,23 @@ def predict_video(root, video, device_name='auto', visual_only=False):
     result = {
         "video": str(video),
         "prediction": "Accident" if score >= threshold else "Normal",
+        "visual_prediction": "Accident" if visual_score >= threshold else "Normal",
+        "audio_prediction": (
+            "Accident" if audio_score >= threshold else "Normal"
+        ) if audio_score is not None else None,
         "accident_score": float(score),
         "threshold": threshold,
         "visual_score": visual_score,
         "audio_score": audio_score,
         "mode": mode,
-        "visual_weight": alpha if mode == 'audio_visual' else (0.0 if mode == 'audio_only' else 1.0),
+        "visual_weight": alpha if mode == 'audio_visual' else 1.0,
+        "audio_weight": (1.0 - alpha) if mode == 'audio_visual' else 0.0,
         "validation_selected_visual_weight": alpha,
         "known_dataset_split": previous,
         "duration_s": float(sample['duration']),
         "warnings": warnings,
         "windows": rows,
-        "aggregation": "maximum window score per modality, followed by validation-selected video-level decision",
+        "aggregation": "maximum window score per modality, followed by validation-selected video-level weighted fusion",
     }
 
     folder = root / 'datasets/processed/predictions' / (video.stem + '_' + checksum[:10])
@@ -502,12 +515,14 @@ def predict_video(root, video, device_name='auto', visual_only=False):
     print(
         f"\nPrediction: {result['prediction']} | accident score: {score:.4f} | mode: {mode}"
     )
-    print(f"Visual: {visual_score:.4f}; audio: {audio_score if audio_score is not None else 'unavailable'}")
+    print(
+        f"Visual: {visual_score:.4f}; audio: "
+        f"{audio_score if audio_score is not None else 'unavailable'}"
+    )
     for warning in warnings:
         print('NOTE:', warning)
     print('Saved:', folder / 'prediction.json')
     return result
-
 
 def evaluate_project(root, device_name='auto'):
     root = Path(root)
@@ -519,25 +534,48 @@ def evaluate_project(root, device_name='auto'):
     if split['fingerprint'] != state['dataset_fingerprint']:
         raise ValueError("Saved splits do not match this model.")
     samples = load_samples(root, split['splits']['test'], extractor)
-    alpha = state['fusion']['visual_weight']
+    alpha = validate_multimodal_weight(state['fusion']['visual_weight'])
     labels, visual, audio, selected, records = [], [], [], [], []
     for sample in samples:
-        _, _, vs, aus, fused, _ = score_sample(sample, models, norms, device, alpha)
+        _, _, vs, aus, fused, mode = score_sample(sample, models, norms, device, alpha)
+        visual_prediction = int(vs >= 0.5)
+        audio_prediction = int(aus >= 0.5)
+        selected_prediction = int(fused >= 0.5)
         labels.append(sample['label'])
         visual.append(vs)
         audio.append(aus)
         selected.append(fused)
-        records.append({"video_path": sample['video_path'], "label": sample['label'],
-                        "visual_score": vs, "audio_score": aus, "selected_score": fused,
-                        "prediction": int(fused >= 0.5)})
-    report = {"split": "test", "label_order": ["Normal", "Accident"], "fusion": state['fusion'],
-              "visual": binary_metrics(labels, visual), "audio": binary_metrics(labels, audio),
-              "selected_fusion": binary_metrics(labels, selected),
-              "fixed_equal_fusion": binary_metrics(labels, (np.asarray(visual) + np.asarray(audio)) / 2),
-              "limitation": "Small held-out sets have high uncertainty. Do not tune settings using these results."}
+        records.append({
+            "video_path": sample['video_path'],
+            "label": sample['label'],
+            "visual_score": vs,
+            "visual_prediction": visual_prediction,
+            "audio_score": aus,
+            "audio_prediction": audio_prediction,
+            "selected_score": fused,
+            "selected_prediction": selected_prediction,
+            "decision_mode": mode,
+            "correct_visual": visual_prediction == sample['label'],
+            "correct_audio": audio_prediction == sample['label'],
+            "correct_selected": selected_prediction == sample['label'],
+        })
+    report = {
+        "split": "test",
+        "label_order": ["Normal", "Accident"],
+        "fusion": state['fusion'],
+        "visual": binary_metrics(labels, visual),
+        "audio": binary_metrics(labels, audio),
+        "selected_fusion": binary_metrics(labels, selected),
+        "fixed_equal_fusion": binary_metrics(labels, (np.asarray(visual) + np.asarray(audio)) / 2),
+        "limitation": (
+            "The held-out set is small and results have high uncertainty. "
+            "Report branch and fusion metrics separately; do not tune settings using the test set."
+        ),
+    }
     write_json(root / 'datasets/processed/reports/test_metrics.json', report)
     write_csv(root / 'datasets/processed/reports/test_predictions.csv', records, list(records[0]))
     print('\nHeld-out test results (video level):')
+    print(f"Fusion weights: visual={alpha:.2f}, audio={1.0 - alpha:.2f}")
     for name in ('visual', 'audio', 'fixed_equal_fusion', 'selected_fusion'):
         metrics = report[name]
         print(f"{name:20s}: accuracy={metrics['accuracy']:.3f} F1={metrics['f1_accident']:.3f} "

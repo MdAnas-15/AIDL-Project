@@ -1,11 +1,26 @@
+# Local Python environments and bytecode
 .venv/
-__pycache__/
-*.pyc
-# Streamlit local configuration/secrets and uploaded demonstration videos
-.streamlit/secrets.toml
-datasets/processed/uploads/
-
-# Python/test caches
+venv/
 __pycache__/
 *.py[cod]
+*$py.class
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local environment variables and Streamlit secrets
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+
+# Regenerable local artifacts that may contain private paths or large arrays
+datasets/processed/cache/
+datasets/processed/uploads/
+datasets/processed/predictions/
+
+# Operating-system and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

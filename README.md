@@ -265,16 +265,21 @@ It can differ slightly from your earlier librosa plot because mel defaults diffe
   assigned individual accident labels.
 - Standardization is fitted on training data only. Audio masking, dropout,
   weight decay, and validation early stopping are included.
-- Validation log loss selects a visual fusion weight from 0, .25, .5, .75, 1;
-  the decision threshold stays at .5. Zero or one means a single model was better
-  on validation. Combining two models is not guaranteed to improve performance.
+- Validation log loss selects the visual contribution from .25, .50, or .75;
+  the audio contribution is the complement ( .75, .50, or .25 ). Both modalities
+  therefore affect every fused prediction when both streams are usable. The decision
+  threshold stays at .5. A visual-only fallback remains available when audio is
+  missing, silent, incomplete, undecodable, or explicitly disabled. Restricting the
+  search to interior weights is a project design choice, not proof that fusion is
+  more accurate; compare the branches on a larger independent test set.
 - Final fusion combines each modality's maximum whole-video score. The strongest
   visual and audio windows may differ; window scores are not precise event times.
 
-With only 20 videos per class this is a small college/research baseline. More
-independent data, accurate event labels, larger tests, and stronger pretrained
-encoders would be needed for dependable real-world use. No real accident accuracy
-is claimed or encoded into the project.
+The current committed inventory contains 14 labelled videos (9 accident and 5
+normal). Its saved split contains 10 training, 2 validation, and 2 test videos.
+This is a very small research baseline: even a perfect two-video test result would
+not establish dependable real-world performance. More independent recordings,
+carefully verified labels, and a substantially larger held-out test set are needed.
 
 ## Troubleshooting
 
@@ -322,7 +327,7 @@ python -m streamlit run app.py
 
 Streamlit opens a local browser tab. Upload a supported video (MP4, AVI, MOV, MKV, WEBM, or M4V), then choose **Analyse video**. A video must be no longer than 120 seconds under the current `Config` in `inspect_video.py`.
 
-The app displays the final Accident/Normal result, raw model scores, the selected decision path, window-level scores, and downloadable JSON/CSV reports. Scores are not calibrated probabilities.
+The app displays the final Accident/Normal result, separate visual and audio branch predictions, the selected fusion weights, raw model scores, window-level scores, and downloadable JSON/CSV reports. When usable audio is present, both branches contribute to the default fused decision. Scores are not calibrated probabilities.
 
 ## Train with the two additional local normal videos
 
@@ -363,3 +368,26 @@ python evaluate_external.py --accident-dir "D:\\AIDL-External-Test\\accident" --
 ```
 
 The evaluator refuses exact files already included in the model's training, validation, or test split. It writes a JSON report and per-video CSV under `datasets/processed/reports/`. Begin with at least 2–5 genuinely independent videos per class for a smoke test, then expand the set. A handful of samples remains preliminary evidence, not a dependable estimate of real-world accuracy.
+
+## Two-stream fusion update
+
+The current training code fits the visual temporal head and audio CNN separately on
+video-level labels from the same training split. Validation log loss selects one of
+three interior late-fusion weights: visual 0.25/audio 0.75, visual 0.50/audio 0.50,
+or visual 0.75/audio 0.25. Neither branch can therefore be silently assigned zero
+weight. The held-out evaluator reports visual-only, audio-only, fixed-equal, and
+selected-fused metrics, with per-video predictions from both branches and fusion.
+Independent external evaluation reports both branch metrics and fused metrics;
+audio-only metrics use the subset with usable audio.
+
+A checkpoint trained with the old endpoint weight (0.0 or 1.0) is rejected by the
+updated inference loader. Retrain both heads and save a fresh checkpoint before
+running the app or evaluation. By default, prediction uses both modalities whenever
+audio is usable. If the audio stream is unavailable or unusable, the implementation
+falls back to visual-only and records that decision path; the app also provides an
+explicit visual-only diagnostic option.
+
+Run the focused regression tests with:
+
+    python -m unittest discover -s tests -v
+
