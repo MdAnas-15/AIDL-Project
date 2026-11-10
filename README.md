@@ -1,393 +1,270 @@
-# Audio Visual Road Accident Detection — your existing structure
+# Audio-Visual Road Accident Detection
 
-This version keeps the same FIVE Python filenames shown in your screenshot.
-It does not require a `main.py`, `aidl` package, or new source-code folders.
+A research prototype for classifying road recordings as **Accident** or **Normal** using visual and acoustic information. The project includes media inspection, feature extraction, model training, grouped dataset splitting, evaluation, independent prediction, and a Streamlit demonstration interface.
 
-## What to do first
+The system is intended to help a reviewer prioritise recordings. It is not a certified safety system, an emergency-response service, or a substitute for human assessment.
 
-Back up your existing project. Extract this ZIP and copy its contents into your
-existing `AIDL Project` folder, replacing the five Python files. Keep your existing
-`.venv` and any additional raw videos. Do not replace your carefully edited
-annotations with the included one-row example if you have added more annotations.
-If you already have more videos, regenerate the inventory after copying.
+## Overview
 
-The ZIP includes your supplied CA_001.mp4 and its regenerated four-second frame,
-audio, and spectrogram previews. It does NOT contain trained accident models.
-It does not contain `.venv`: a virtual environment must stay on the computer
-where it was created (or be recreated), not be copied between computers.
+The classifier uses two independently trained branches:
 
-Open the project folder in VS Code. In its terminal, activate the existing environment:
+- **Visual branch:** sixteen frames are sampled from each four-second window. A frozen ImageNet-pretrained ResNet-18 extracts a 512-dimensional feature vector from each frame. A projection layer and bidirectional GRU model the sequence, followed by mean/max temporal pooling and a binary classification head.
+- **Audio branch:** the soundtrack is converted to mono at 16 kHz and represented as a 64-band log-Mel spectrogram. A compact CNN trained from scratch classifies the spectrogram.
+- **Decision stage:** each branch is aggregated to a recording-level score using the maximum window score. When all required audio windows are usable, weighted late fusion combines the two scores. The visual coefficient is selected on validation data from `0.25`, `0.50`, and `0.75`; the audio coefficient is `1 - alpha`. When audio is unavailable, incomplete, silent, undecodable, or explicitly disabled, inference uses the visual branch alone.
 
-```powershell
-.\.venv\Scripts\Activate.ps1
+The two branches are trained separately. The project does not use feature concatenation, cross-attention, object tracking, collision localisation, or accident anticipation.
+
+## Dataset currently recorded in the repository
+
+The labelled inventory contains **14 source videos**:
+
+| Class | Videos |
+|---|---:|
+| Accident | 9 |
+| Normal | 5 |
+| **Total** | **14** |
+
+The saved source-group split contains 10 training videos (7 Accident, 3 Normal), 2 validation videos (one per class), and 2 test videos (one per class). The split uses seed 42 and keeps each source group within one subset.
+
+The four files under `AI vids/` and two files under `Test/` are auxiliary media. They are not part of `datasets/raw`, the labelled inventory, or the saved split. Prediction records for auxiliary videos are demonstrations; no verified ground-truth labels for those files are recorded in the dataset manifest.
+
+This is a small development dataset, not a representative road-safety benchmark. One incorrect prediction changes accuracy on the two-video test set by 50 percentage points. Any metrics from that split must be described as preliminary.
+
+## Repository structure
+
+```text
+.
+├── app.py                         # Streamlit demonstration interface
+├── audio_processing.py            # Audio extraction, log-Mel features, audio CNN
+├── create_dataset.py              # Inventory, splitting, training, fusion, evaluation, prediction
+├── evaluate_external.py            # Evaluation on separately labelled external videos
+├── inspect_audio_features.py       # Audio and spectrogram diagnostics
+├── inspect_video.py                # Shared configuration and media inspection
+├── video_processing.py             # Frame sampling, visual features, visual model
+├── requirements.txt                # Python dependencies
+├── VALIDATION.md                   # Test scope and validation record
+├── tests/
+│   └── test_fusion_policy.py       # Fusion-policy regression tests
+└── datasets/
+    ├── raw/
+    │   ├── accident/                # Accident-labelled source videos
+    │   └── normal/                  # Normal-traffic source videos
+    ├── annotations.csv             # Optional reviewed annotations
+    ├── groups.csv                  # Source-group assignments
+    ├── inventory.csv               # Generated media inventory and hashes
+    ├── splits.json                 # Fixed group-aware split manifest
+    └── processed/                  # Features, checkpoints, reports and predictions
 ```
 
-If you are using a fresh folder without an environment, first run:
+The `datasets/processed/` directory contains generated artifacts. Raw recordings and reviewed annotations should be retained as source material; processed features can be regenerated using the same configuration.
+
+## Requirements and setup
+
+- Python 3.11 or later
+- 64-bit Python
+- Windows, Linux, or macOS
+- CPU execution is supported; CUDA is optional
+- Internet access is required on the first run if the pretrained ResNet-18 weights are not cached locally
+
+Create and activate an isolated environment.
+
+**Windows PowerShell**
 
 ```powershell
 python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 ```
 
-If PowerShell blocks activation, use a Command Prompt terminal and run:
+**Linux / macOS**
 
-```text
-.venv\Scripts\activate.bat
+```bash
+python -m venv .venv
+source .venv/bin/activate
 ```
 
-Python 3.11.9, as installed on your laptop, is suitable. Use 64-bit Python.
-Install the CPU PyTorch packages first to avoid an unnecessary large GPU download:
+Install dependencies. For a CPU-only Windows or Linux setup, the matching PyTorch CPU wheels can be installed before the remaining requirements:
 
-```powershell
+```bash
 python -m pip install --upgrade pip
 python -m pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cpu
 python -m pip install -r requirements.txt
 python create_dataset.py doctor
 ```
 
-For macOS, omit the CPU-index installation command and install requirements directly.
-A GPU is optional. Default execution automatically uses CUDA when available,
-otherwise CPU. The first training run downloads about 45 MB of pretrained visual
-weights from PyTorch; later prediction loads the saved weights locally.
-No paid APIs, accounts, separate FFmpeg executable, or web frontend are required.
+On a platform with a suitable CUDA installation, install the PyTorch build that matches the local CUDA environment instead of the CPU-only wheels. The application selects CUDA when available unless a command explicitly selects a device.
 
-## Your structure and what each file does
+## Preparing the dataset
+
+Place source recordings in class-specific folders:
 
 ```text
-AIDL Project/
-  .venv/                         Keep your existing local environment
-  datasets/
-    processed/
-      audio/accident/CA_001/start_0_duration_4/
-        audio_features.png
-        audio.npz
-        audio.wav
-      video/accident/CA_001/start_0_duration_4/
-        frames.npz
-        preview.jpg
-    raw/
-      accident/CA_001.mp4
-      normal/
-    annotations.csv
-    inventory.csv
-  .gitignore
-  audio_processing.py
-  create_dataset.py
-  inspect_audio_features.py
-  inspect_video.py
-  video_processing.py
-  requirements.txt
-  README.md
-  VALIDATION.md
+datasets/raw/
+├── accident/
+│   ├── accident_001.mp4
+│   └── ...
+└── normal/
+    ├── normal_001.mp4
+    └── ...
 ```
 
-README, requirements, and validation notes are support files. The five Python
-filenames and original data/preview paths are unchanged. Additional model,
-cache, and report files are created automatically inside `datasets/processed`
-when you train; `groups.csv` and `splits.json` are generated inside `datasets`.
+Directory names define the binary labels: `accident` is label `1`, and `normal` is label `0`. The pipeline accepts recordings from 0.5 to 120 seconds. Training requires usable audio for the paired audiovisual examples; inference can fall back to video when audio is unusable.
 
-| File | Responsibilities |
-|---|---|
-| inspect_video.py | Shared settings and media metadata/initial decoding checks |
-| video_processing.py | Timestamped frame sampling, frame preview, pretrained ResNet18 feature extraction, visual GRU classifier |
-| audio_processing.py | Aligned mono audio extraction, WAV export, log-mel conversion, audio CNN |
-| inspect_audio_features.py | Waveform and log-mel visualization |
-| create_dataset.py | Inventory, duplicate checks, grouped splitting, train-only normalization, training, fusion selection, evaluation, independent prediction |
+A useful initial collection target is at least 20 independent source groups per class. This is a collection guideline, not a guarantee of adequate statistical power. Include difficult Normal examples such as abrupt braking, horns, roadworks, pothole-related camera movement, sirens, and busy traffic. Accident examples should vary in collision type, camera position, lighting, road conditions, and sound quality. Labels require human review; the software checks file and signal properties, not the truth of the class label.
 
-Everything is implemented in Python. CSV/JSON are data, not extra application languages.
+Generate or refresh the inventory:
 
-## Add your training videos
-
-Put about 20 independent accident recordings in `datasets/raw/accident` and
-20 normal recordings in `datasets/raw/normal`. Both classes need original audible
-road sound. Prefer individual recordings around 4–20 seconds long; the code
-accepts 0.5–120 seconds. It scans the full accepted duration, not just the first
-four seconds. Very short videos are handled with consistent end padding.
-
-Do not use music-only clips, fabricated crash sounds, mixed-event compilations,
-or mislabeled footage. Include normal examples with horns, hard braking,
-camera movement, and busy traffic, plus variety in camera/road/light/weather.
-The program checks decoding and signal coverage; it cannot certify sound authenticity.
-
-Labels come from folders: Normal = 0, Accident = 1.
-
-```powershell
+```bash
 python create_dataset.py
 ```
 
-This still creates the inventory, as in your earlier workflow. It now also checks
-exact duplicates and creates `datasets/groups.csv` for recording-level grouping.
+The scan records file paths, labels, source groups, hashes, and duplicate checks in `datasets/inventory.csv` and related metadata. Do not edit the generated inventory directly. Review `datasets/groups.csv` and `datasets/annotations.csv` instead.
 
-### Important: keep copies of one event together
+### Source-group integrity
 
-If videos are cropped/re-encoded copies, different camera views of one incident,
-or clips from one original recording, give them the same `source_group` in
-`datasets/groups.csv` BEFORE training. Otherwise, test performance can be misleading.
-The code detects byte-identical duplicates, but not every edited copy.
+Files that come from the same incident or original recording should share one `source_group`, including re-encoded copies, crops, overlapping clips, and alternate camera views of the same event. This prevents related material from appearing in different subsets. Exact file hashes identify byte-identical files, but cannot detect every edited or re-encoded duplicate; source grouping still requires review.
+
+Example:
 
 ```csv
 video_path,source_group
 datasets/raw/accident/front_view.mp4,incident_001
 datasets/raw/accident/side_view.mp4,incident_001
-datasets/raw/normal/before_collision.mp4,incident_001
 ```
 
-Truly independent files can keep their automatically generated groups. Existing
-`annotations.csv` source groups are supported, with `groups.csv` taking priority.
-Collision timestamps are optional: this training pipeline uses whole-video labels.
-Do not edit generated `inventory.csv`; edit groups/annotations instead and rescan.
+## Training
 
-## Train both models
+Train both classifiers and select the fusion coefficient using the validation split:
 
-```powershell
+```bash
 python create_dataset.py train
 ```
 
-This one command scans the dataset, creates independent splits, preprocesses the
-train/validation videos, trains both classifiers, selects fusion, and saves models.
-You do not have to manually preprocess each video or mark every impact time.
+The default configuration allows up to 60 epochs per branch and uses early stopping with a patience of 10 epochs. To run on CPU explicitly:
 
-For 20 independent videos per class, the usual split is 28 training, 6 validation,
-and 6 test videos. All clips of a source group remain together. The minimum enforced
-by the code is five groups containing each class, solely to permit splitting;
-that minimum is not a recommendation for reliable model development.
-
-Default: up to 60 epochs per classifier, with early stopping after 10 epochs
-without an improvement in validation loss. Examples:
-
-```powershell
+```bash
 python create_dataset.py train --device cpu
+```
+
+A short run can check that the pipeline executes, but should not be presented as a final experiment:
+
+```bash
 python create_dataset.py train --epochs 5 --patience 3
 ```
 
-The second command is a quick mechanics check, not a recommended final experiment.
-Feature extraction may take substantial time on a laptop. Cached features make
-repeat runs faster. Keep your terminal open until it says training is complete.
-RAM/time depend on footage and hardware; approximately 8 GB RAM or more is advisable.
+The training workflow creates or reuses the group-aware split, extracts features, fits normalization statistics using training data only, trains the visual and audio heads separately, selects an interior fusion weight on validation data, and saves the model bundle and reports. Test recordings are excluded from fitting, normalization, early stopping, and fusion selection.
 
-Generated files:
+A model checkpoint already exists in the repository, but it was produced by an earlier fusion policy with visual weight `1.00`. The current loader rejects that single-modality checkpoint. To create a checkpoint compatible with the current two-stream implementation, run:
 
-```text
-datasets/splits.json
-datasets/processed/cache/
-datasets/processed/models/model.pt
-datasets/processed/models/visual_encoder.pt
-datasets/processed/models/training_summary.json
-datasets/processed/reports/visual_history.csv
-datasets/processed/reports/audio_history.csv
-datasets/processed/reports/validation_metrics.json
-```
-
-To deliberately replace trained models using the SAME dataset and fixed split:
-
-```powershell
+```bash
 python create_dataset.py train --overwrite
 ```
 
-This retrains from initialization; it does not resume optimizer state. If the
-dataset changes after splitting, use a new project copy for a new experiment.
-Copy raw videos and reviewed annotations/groups, not old splits, models, or caches.
+This retrains the branches on the saved split; it does not resume optimizer state. The selected fusion coefficient is determined by validation data and can be any of `0.25`, `0.50`, or `0.75`.
 
-## Evaluate on held-out videos
+## Evaluation
 
-```powershell
+After training a checkpoint with the current fusion policy, run:
+
+```bash
 python create_dataset.py evaluate
 ```
 
-The saved test split is excluded from fitting, normalization, early stopping, and
-fusion selection. Reports compare the visual classifier, audio classifier,
-fixed equal fusion, and validation-selected fusion.
+The evaluator checks that the dataset fingerprint and split match the saved model, then writes:
 
-See `datasets/processed/reports/test_metrics.json` and `test_predictions.csv`.
-Metrics include accuracy, balanced accuracy, accident precision/recall/F1,
-ROC AUC, average precision, and confusion matrices. Matrix order is
-`[Normal, Accident]`: rows = true labels, columns = predicted labels,
-so entries are `[[TN, FP], [FN, TP]]`.
+- `datasets/processed/reports/test_metrics.json`
+- `datasets/processed/reports/test_predictions.csv`
 
-Do not tune against the test results. Six test videos are far too few for a precise
-accuracy claim: one error changes accuracy by about 16.7 percentage points.
+The report includes visual-only, audio-only, fixed equal-weight fusion, and validation-selected fusion metrics. The confusion matrix label order is `[Normal, Accident]`, with rows representing true labels and columns representing predictions.
 
-## Test a genuinely new video
+The committed test report belongs to the earlier checkpoint with visual weight `1.00`. Its selected score is therefore visual-only, even though both branch scores are recorded. Those legacy metrics are retained as historical output and are not an evaluation of the current interior-weight fusion policy. Retraining and evaluating with the current source is required before reporting updated two-stream metrics.
 
-Keep it outside your raw training folders:
+Do not use the test set to choose hyperparameters, thresholds, architectures, or preprocessing settings. The two-recording test set is too small for a reliable estimate of generalisation.
 
-```powershell
-python create_dataset.py predict "D:\Videos\new_video.mp4"
+## Predicting a video
+
+Run prediction on a video outside the labelled training folders:
+
+```bash
+python create_dataset.py predict "path/to/recording.mp4"
 ```
 
-Output includes Accident/Normal, separate modality scores, the selected score,
-and whether audio was used. JSON and per-window CSV results are saved in
-`datasets/processed/predictions/<filename>_<hash>/`.
+To force visual-only inference:
 
-For replaced/music audio, explicitly ignore it:
-
-```powershell
-python create_dataset.py predict "D:\Videos\new_video.mp4" --visual-only
+```bash
+python create_dataset.py predict "path/to/recording.mp4" --visual-only
 ```
 
-If audio is missing, silent, insufficiently covered, or undecodable, prediction
-falls back to visual-only and reports this. Training rejects those recordings.
-An exact video already in a saved split receives an independence warning.
-Scores are uncalibrated outputs, not certified percentages of accident probability.
-The system does not automatically recognize all added music or fake sound.
+The prediction output contains the final label, recording-level score, visual and audio scores when available, fusion mode and weights, warnings, and per-window values. JSON and CSV records are written under `datasets/processed/predictions/`. A known-file hash triggers a warning when the input is already part of a saved dataset split.
 
-## Your existing preprocessing commands still work
+Scores are uncalibrated model outputs. A score of `0.8` is not a calibrated statement that an accident has an 80% probability of having occurred. The timestamp of a high-scoring window is not a verified collision timestamp.
 
-These commands are for inspecting a chosen sample. `train` performs its own
-full-video processing automatically and does not treat old sample previews as
-training inputs.
+## Streamlit interface
 
-```powershell
-python inspect_video.py "datasets/raw/accident/CA_001.mp4"
-python video_processing.py "datasets/raw/accident/CA_001.mp4" --start 0 --duration 4
-python audio_processing.py "datasets/processed/video/accident/CA_001/start_0_duration_4/frames.npz"
-python inspect_audio_features.py "datasets/processed/audio/accident/CA_001/start_0_duration_4/audio.npz"
-```
+With a compatible trained checkpoint available, start the local interface:
 
-The saved frames have shape (16, 224, 224, 3); audio has 64000 samples; its
-spectrogram has shape (64, 398). Image proportions are preserved by letterboxing.
-The manual audio command requires complete coverage of the selected interval;
-training accepts at least 95% real audio coverage, padding minor uncovered edges
-with silence. Silent recordings are not accepted for audiovisual training.
-The inspection plot now uses exactly the same mel implementation as training.
-It can differ slightly from your earlier librosa plot because mel defaults differ.
-
-## What is being trained?
-
-- Frozen ResNet18 pretrained on ImageNet extracts 512-dimensional frame features.
-- A trainable projection, bidirectional GRU, and classification head learn visual
-  temporal patterns from sequences of 16 frames.
-- A small trainable audio CNN learns from 64-band log-mel spectrograms. This audio
-  CNN starts from scratch; it is NOT a pretrained accident/audio model.
-- Four-second windows overlap by two seconds, with a final end-covering window.
-- Multiple-instance learning uses the maximum window logit as each modality's
-  video logit. A positive video needs at least one positive window; all windows
-  in a negative video should be negative. Pre-impact frames are not automatically
-  assigned individual accident labels.
-- Standardization is fitted on training data only. Audio masking, dropout,
-  weight decay, and validation early stopping are included.
-- Validation log loss selects the visual contribution from .25, .50, or .75;
-  the audio contribution is the complement ( .75, .50, or .25 ). Both modalities
-  therefore affect every fused prediction when both streams are usable. The decision
-  threshold stays at .5. A visual-only fallback remains available when audio is
-  missing, silent, incomplete, undecodable, or explicitly disabled. Restricting the
-  search to interior weights is a project design choice, not proof that fusion is
-  more accurate; compare the branches on a larger independent test set.
-- Final fusion combines each modality's maximum whole-video score. The strongest
-  visual and audio windows may differ; window scores are not precise event times.
-
-The current committed inventory contains 14 labelled videos (9 accident and 5
-normal). Its saved split contains 10 training, 2 validation, and 2 test videos.
-This is a very small research baseline: even a perfect two-video test result would
-not establish dependable real-world performance. More independent recordings,
-carefully verified labels, and a substantially larger held-out test set are needed.
-
-## Troubleshooting
-
-- `No trained model`: finish `python create_dataset.py train` first.
-- `Not enough independent groups`: add genuinely new recordings of both classes.
-- `Dataset changed`: start a fresh experiment; do not silently reshuffle a used test set.
-- `Could not load pretrained weights`: restore internet access and retry. There is
-  no fallback to random visual backbone weights.
-- `Audio unusable`: inspect the named file and provide valid original road audio.
-- `Video over 120 seconds`: make shorter clips and preserve their common group.
-- `CUDA unavailable/out of memory`: use `--device cpu`.
-- `No module named ...`: activate `.venv` and reinstall requirements.
-
-API references:
-https://docs.pytorch.org/vision/stable/models/generated/torchvision.models.resnet18.html
-https://pyav.basswood.io/docs/stable/api/audio.html
-https://scikit-learn.org/stable/modules/model_evaluation.html
-
-# Showcase application and current experiment workflow
-
-## Install updated dependencies
-
-Activate the existing Python 3.11 virtual environment, then run:
-
-```powershell
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-python create_dataset.py doctor
-```
-
-If PyTorch is not already installed and your laptop will use CPU, install the matching CPU wheels first (then install the remaining requirements):
-
-```powershell
-python -m pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cpu
-python -m pip install -r requirements.txt
-```
-
-## Start the showcase interface
-
-From the repository root, with the trained model files present:
-
-```powershell
+```bash
 python -m streamlit run app.py
 ```
 
-Streamlit opens a local browser tab. Upload a supported video (MP4, AVI, MOV, MKV, WEBM, or M4V), then choose **Analyse video**. A video must be no longer than 120 seconds under the current `Config` in `inspect_video.py`.
+The interface accepts common video formats and displays the recording-level result, modality-specific scores, fusion details, window-level scores, warnings, and downloadable JSON/CSV reports. The current model bundle must be retrained before the interface can load it because the committed checkpoint uses the legacy single-modality fusion weight.
 
-The app displays the final Accident/Normal result, separate visual and audio branch predictions, the selected fusion weights, raw model scores, window-level scores, and downloadable JSON/CSV reports. When usable audio is present, both branches contribute to the default fused decision. Scores are not calibrated probabilities.
+## External evaluation
 
-## Train with the two additional local normal videos
-
-Place the two files under `datasets/raw/normal/`. Run the `CREATE_DATASET_PATCH.md` instructions to archive the old split/model and intentionally create a new split. The raw dataset and any generated cache remain local; the cache is keyed by each file hash and preprocessing configuration.
-
-```powershell
-python create_dataset.py
-Remove-Item .\datasets\splits.json
-python create_dataset.py train --overwrite
-python create_dataset.py evaluate
-```
-
-If the two long videos exceed the 120-second limit, do not simply raise the limit without considering the cost: split them into meaningful labelled clips of at most 120 seconds. Every clip derived from the same original recording must share one `source_group` in `datasets/groups.csv`, so related clips cannot leak across training and test splits. The clip-generation method must preserve the original audio; do not replace audio with downloaded crash sounds.
-
-## Before presenting
-
-1. Run `python create_dataset.py doctor`.
-2. Confirm that `datasets/processed/models/model.pt` and `visual_encoder.pt` exist.
-3. Run the held-out evaluation and retain `test_metrics.json` and `test_predictions.csv`.
-4. Run `python -m streamlit run app.py`.
-5. Try at least two genuinely unseen accident videos and two genuinely unseen normal videos downloaded from different sources. Record their true labels independently and do not add those same videos to training before evaluating them.
-6. Present the model as an academic prototype. The current small dataset and very small test split do not establish broad real-world accuracy.
-
-## Evaluate on a separate set of online videos
-
-Create two folders OUTSIDE `datasets/raw` and put genuinely unseen videos in them:
+External recordings should be kept outside `datasets/raw` and labelled independently. For example:
 
 ```text
-D:\\AIDL-External-Test\\
-  accident\\
-  normal\\
+external_test/
+├── accident/
+└── normal/
 ```
 
-Manually confirm the ground-truth class for each downloaded clip. Then run:
+Run:
 
-```powershell
-python evaluate_external.py --accident-dir "D:\\AIDL-External-Test\\accident" --normal-dir "D:\\AIDL-External-Test\\normal"
+```bash
+python evaluate_external.py --accident-dir "external_test/accident" --normal-dir "external_test/normal"
 ```
 
-The evaluator refuses exact files already included in the model's training, validation, or test split. It writes a JSON report and per-video CSV under `datasets/processed/reports/`. Begin with at least 2–5 genuinely independent videos per class for a smoke test, then expand the set. A handful of samples remains preliminary evidence, not a dependable estimate of real-world accuracy.
+The evaluator refuses exact recordings already included in the saved training, validation, or test split. External evaluation should use verified labels and a compatible checkpoint. A small smoke-test collection is not sufficient evidence of deployment performance.
 
-## Two-stream fusion update
+## Preprocessing configuration
 
-The current training code fits the visual temporal head and audio CNN separately on
-video-level labels from the same training split. Validation log loss selects one of
-three interior late-fusion weights: visual 0.25/audio 0.75, visual 0.50/audio 0.50,
-or visual 0.75/audio 0.25. Neither branch can therefore be silently assigned zero
-weight. The held-out evaluator reports visual-only, audio-only, fixed-equal, and
-selected-fused metrics, with per-video predictions from both branches and fusion.
-Independent external evaluation reports both branch metrics and fused metrics;
-audio-only metrics use the subset with usable audio.
+| Setting | Value |
+|---|---:|
+| Window duration | 4 seconds |
+| Window stride | 2 seconds |
+| Frames per window | 16 |
+| Image dimensions | 224 × 224 |
+| Visual encoder | Frozen ResNet-18, ImageNet-1K V1 |
+| Visual embedding | 512 dimensions per frame |
+| Audio sample rate | 16,000 Hz, mono |
+| STFT window / hop | 400 / 160 samples |
+| Mel bands | 64 |
+| Minimum audio coverage | 0.95 |
+| Effective-silence threshold | RMS greater than 1 × 10⁻⁵ |
+| Maximum recording duration | 120 seconds |
+| Decision threshold | 0.50 |
+| Fusion visual weights | 0.25, 0.50, 0.75 |
 
-A checkpoint trained with the old endpoint weight (0.0 or 1.0) is rejected by the
-updated inference loader. Retrain both heads and save a fresh checkpoint before
-running the app or evaluation. By default, prediction uses both modalities whenever
-audio is usable. If the audio stream is unavailable or unusable, the implementation
-falls back to visual-only and records that decision path; the app also provides an
-explicit visual-only diagnostic option.
+The log-Mel feature shape for one four-second segment is `64 × 398`. The corresponding mono waveform contains 64,000 samples. Frames are letterboxed to preserve their original aspect ratio.
 
-Run the focused regression tests with:
+## Tests and validation
 
-    python -m unittest discover -s tests -v
+Run the fusion-policy regression tests with:
 
+```bash
+python -m unittest discover -s tests -v
+```
+
+The tests cover the interior-weight selection rule, contribution from both branches when audio is usable, visual-only fallback when audio is unusable, rejection of legacy single-modality checkpoints, and acceptance of the current weights. See [VALIDATION.md](VALIDATION.md) for the distinction between software checks, historical validation notes, and empirical model evaluation.
+
+## Limitations and responsible use
+
+The current labelled collection contains only 14 videos from 14 recorded source groups. It does not cover the range of road layouts, camera systems, microphones, weather, traffic density, collision types, and recording conditions expected in practical deployment. The saved held-out split has one recording from each class. Results from this split are descriptive of those two files and should not be generalised.
+
+The classifier produces a recording-level Accident/Normal label. It does not estimate collision severity, identify vehicles or people, establish legal fault, localise an impact, or predict a collision before it occurs. Audio usability checks measure coverage and signal energy; they do not verify that the soundtrack is original or semantically related to the video. Human review, privacy safeguards, larger independent datasets, camera/site-held-out testing, calibration, latency measurements, and operational safety procedures would be required before any deployment.
+
+## References for implementation details
+
+- [torchvision ResNet-18 documentation](https://docs.pytorch.org/vision/stable/models/generated/torchvision.models.resnet18.html)
+- [PyAV documentation](https://pyav.basswood.io/docs/stable/api/audio.html)
+- [scikit-learn model evaluation](https://scikit-learn.org/stable/modules/model_evaluation.html)
