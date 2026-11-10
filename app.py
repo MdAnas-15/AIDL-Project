@@ -79,7 +79,7 @@ def _mode_description(result: dict[str, Any]) -> tuple[str, str]:
     if mode == "audio_only":
         return "Audio-only decision", "The validation-selected fusion weight assigns the decision to the audio branch."
     if result.get("audio_score") is not None and alpha >= 0.999:
-        return "Visual-only decision", "The validation-selected visual weight is 1.00. The audio score is shown for diagnostics but does not affect the final label."
+        return "Visual-only decision", "This is a legacy single-modality checkpoint. Retrain with the current two-stream code before using it."
     return "Visual-only decision", "Audio was unavailable, unusable, or explicitly disabled for this prediction."
 
 
@@ -182,6 +182,13 @@ if result:
     metric_cols[1].metric("Visual branch score", f"{visual_score:.3f}")
     metric_cols[2].metric("Audio branch score", "Unavailable" if audio_score is None else f"{float(audio_score):.3f}")
     metric_cols[3].metric("Video duration", f"{float(result.get('duration_s', 0)):.1f} s")
+    branch_cols = st.columns(3)
+    branch_cols[0].metric("Visual branch prediction", str(result.get("visual_prediction", "Unavailable")))
+    branch_cols[1].metric("Audio branch prediction", str(result.get("audio_prediction") or "Unavailable"))
+    branch_cols[2].metric(
+        "Fusion weights",
+        f"V {float(result.get('visual_weight', 1.0)):.2f} / A {float(result.get('audio_weight', 0.0)):.2f}",
+    )
     st.caption("Scores are raw, uncalibrated model outputs—not verified probabilities or guarantees.")
 
     windows = result.get("windows", [])
