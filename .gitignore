@@ -1,4 +1,4 @@
-# Python environments and bytecode
+# Local Python environments and bytecode
 .venv/
 venv/
 __pycache__/
@@ -8,25 +8,18 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
-# Local secrets and environment files
+# Local environment variables and Streamlit secrets
 .env
 .env.*
 !.env.example
 .streamlit/secrets.toml
 
-# Generated preprocessing, model, prediction, and report artifacts
-# (raw source recordings and reviewed annotation/group CSVs are managed separately)
+# Regenerable local artifacts that may contain private paths or large arrays
 datasets/processed/cache/
-datasets/processed/models/*.pt
-datasets/processed/predictions/
 datasets/processed/uploads/
-datasets/processed/reports/
-datasets/processed/audio/
-datasets/processed/video/
-datasets/inventory.csv
-datasets/splits.json
+datasets/processed/predictions/
 
-# OS/editor noise
+# Operating-system and editor files
 .DS_Store
 Thumbs.db
 .vscode/
