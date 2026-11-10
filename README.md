@@ -265,9 +265,13 @@ It can differ slightly from your earlier librosa plot because mel defaults diffe
   assigned individual accident labels.
 - Standardization is fitted on training data only. Audio masking, dropout,
   weight decay, and validation early stopping are included.
-- Validation log loss selects a visual fusion weight from 0, .25, .5, .75, 1;
-  the decision threshold stays at .5. Zero or one means a single model was better
-  on validation. Combining two models is not guaranteed to improve performance.
+- Validation log loss selects the visual contribution from .25, .50, or .75;
+  the audio contribution is the complement ( .75, .50, or .25 ). Both modalities
+  therefore affect every fused prediction when both streams are usable. The decision
+  threshold stays at .5. A visual-only fallback remains available when audio is
+  missing, silent, incomplete, undecodable, or explicitly disabled. Restricting the
+  search to interior weights is a project design choice, not proof that fusion is
+  more accurate; compare the branches on a larger independent test set.
 - Final fusion combines each modality's maximum whole-video score. The strongest
   visual and audio windows may differ; window scores are not precise event times.
 
