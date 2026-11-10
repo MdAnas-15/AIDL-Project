@@ -84,14 +84,10 @@
     ]
   },
   "fusion": {
-    "visual_weight": 1.0,
+    "visual_weight": 0.75,
     "threshold": 0.5,
-    "selection": "validation log loss; fixed threshold 0.5",
+    "selection": "validation log loss among interior weights [0.25, 0.50, 0.75]; both modalities contribute; fixed threshold 0.5",
     "candidates": [
-      {
-        "visual_weight": 0.0,
-        "validation_log_loss": 0.700170636177063
-      },
       {
         "visual_weight": 0.25,
         "validation_log_loss": 0.4760664850473404
@@ -103,10 +99,6 @@
       {
         "visual_weight": 0.75,
         "validation_log_loss": 0.13932060077786446
-      },
-      {
-        "visual_weight": 1.0,
-        "validation_log_loss": 0.005883698599063791
       }
     ]
   }

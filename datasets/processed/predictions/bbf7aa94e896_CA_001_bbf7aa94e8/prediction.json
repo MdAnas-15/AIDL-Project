@@ -1,19 +1,22 @@
 {
   "video": "D:\\Anas\\3rd year\\AIDL\\AIDL_Project_Complete\\AIDL Project\\datasets\\processed\\uploads\\bbf7aa94e896_CA_001.mp4",
   "prediction": "Accident",
-  "accident_score": 0.9997767806053162,
+  "visual_prediction": "Accident",
+  "audio_prediction": "Normal",
+  "accident_score": 0.869943417608738,
   "threshold": 0.5,
   "visual_score": 0.9997767806053162,
   "audio_score": 0.4804433286190033,
-  "mode": "visual_only",
-  "visual_weight": 1.0,
-  "validation_selected_visual_weight": 1.0,
+  "mode": "audio_visual",
+  "visual_weight": 0.75,
+  "audio_weight": 0.25,
+  "validation_selected_visual_weight": 0.75,
   "known_dataset_split": "train",
   "duration_s": 6.6,
   "warnings": [
     "Scores are uncalibrated model outputs, not guaranteed accident probabilities.",
     "This exact video belongs to the saved train split; it is not an independent new video.",
-    "The validation-selected visual weight is 1.00. Audio was evaluated for diagnostics, but it did not contribute to the final decision."
+    "Both branches contributed to the final score (visual weight=0.75, audio weight=0.25)."
   ],
   "windows": [
     {
@@ -38,5 +41,5 @@
       "audio_coverage": 0.992671875
     }
   ],
-  "aggregation": "maximum window score per modality, followed by validation-selected video-level decision"
+  "aggregation": "maximum window score per modality, followed by validation-selected video-level weighted fusion"
 }

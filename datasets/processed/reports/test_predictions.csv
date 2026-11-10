@@ -1,3 +1,3 @@
-video_path,label,visual_score,audio_score,selected_score,prediction
-datasets/raw/accident/CA_009.mp4,1,0.9998090863227844,0.4617898762226105,0.9998090863227844,1
-datasets/raw/normal/NV_003.webm,0,0.00040396262193098664,0.4632073938846588,0.00040396262193098664,0
+video_path,label,visual_score,visual_prediction,audio_score,audio_prediction,selected_score,selected_prediction,decision_mode,correct_visual,correct_audio,correct_selected
+datasets/raw/accident/CA_009.mp4,1,0.9998090863227844,1,0.4617898762226105,0,0.8653042837977409,1,audio_visual,True,False,True
+datasets/raw/normal/NV_003.webm,0,0.00040396262193098664,0,0.4632073938846588,0,0.11610482043761294,0,audio_visual,True,True,True
